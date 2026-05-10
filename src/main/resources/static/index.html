@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css">
     <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.0/dist/index.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.3.1/dist/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios@1.7.9/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@15.0.6/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/highlight.min.js"></script>
@@ -341,10 +342,23 @@
                     class="history-item"
                     @click="loadSession(session)"
             >
-                <div class="history-title">{{ session.title }}</div>
-                <div class="history-meta">
-                    <span>{{ formatTime(session.updatedAt) }}</span>
-                    <span>{{ session.messageCount }} 条消息</span>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div class="history-title">{{ session.title }}</div>
+                        <div class="history-meta">
+                            <span>{{ formatTime(session.updatedAt) }}</span>
+                            <span>{{ session.messageCount }} 条消息</span>
+                        </div>
+                    </div>
+                    <el-button
+                            size="small"
+                            type="danger"
+                            text
+                            @click.stop="deleteSession(session)"
+                            style="margin-left: 8px; flex-shrink: 0;"
+                    >
+                        <el-icon><Delete /></el-icon>
+                    </el-button>
                 </div>
             </div>
         </template>
@@ -369,7 +383,7 @@
         return Date.now().toString() + Math.random().toString(36).substring(2, 8);
     }
 
-    createApp({
+    const app = createApp({
         setup() {
             const messages = ref([]);
             const inputMessage = ref('');
@@ -504,6 +518,23 @@
                 }
             };
 
+            const deleteSession = async (session) => {
+                try {
+                    await ElementPlus.ElMessageBox.confirm(
+                        '确定要删除会话「' + session.title + '」吗？',
+                        '删除确认',
+                        { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+                    );
+                    await axios.delete('/history/delete/' + session.id);
+                    sessions.value = sessions.value.filter(s => s.id !== session.id);
+                    ElementPlus.ElMessage.success('会话已删除');
+                } catch (e) {
+                    if (e !== 'cancel') {
+                        ElementPlus.ElMessage.error('删除失败');
+                    }
+                }
+            };
+
             const formatTime = (timeStr) => {
                 if (!timeStr) return '';
                 const d = new Date(timeStr);
@@ -528,10 +559,17 @@
                 newSession,
                 openHistory,
                 loadSession,
+                deleteSession,
                 formatTime
             };
         }
-    }).use(ElementPlus).mount('#app');
+    });
+    if (typeof ElementPlusIconsVue !== 'undefined') {
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            app.component(key, component);
+        }
+    }
+    app.use(ElementPlus).mount('#app');
 </script>
 </body>
 </html>
