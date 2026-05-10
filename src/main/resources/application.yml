@@ -1,0 +1,25 @@
+#设置web应用和字符集编码
+server:
+  port: 8080
+  tomcat:
+    uri-encoding: UTF-8
+
+#定义spring ai的Ollama大模型和词嵌入模型
+#temperature: 温度参数，取值范围0-1，值越高则生成的结果越随机，值越低则生成的结果越严谨
+spring:
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        options:
+          model: qwen3:8b
+          temperature: 0.3
+      embedding:
+        options:
+          model: nomic-embed-text:latest
+
+#RAG知识库文档的目录
+#classpath默认目录是 resources
+app:
+  knowledge:
+    dir: classpath:knowledge
