@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - RAG 智能助手</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.9.0/dist/index.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/element-plus@2.9.0/dist/index.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.7.9/dist/axios.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-card {
+            width: 400px;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        }
+
+        .login-title {
+            text-align: center;
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .login-subtitle {
+            text-align: center;
+            font-size: 14px;
+            color: #909399;
+            margin-bottom: 32px;
+        }
+
+        .login-btn {
+            width: 100%;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="login-card">
+        <div class="login-title">RAG 智能助手</div>
+        <div class="login-subtitle">请登录以使用知识库服务</div>
+        <el-form ref="loginForm" :model="form" :rules="rules" @submit.prevent="handleLogin">
+            <el-form-item prop="username">
+                <el-input
+                        v-model="form.username"
+                        placeholder="请输入用户名"
+                        size="large"
+                        :prefix-icon="'User'"
+                        clearable
+                ></el-input>
+            </el-form-item>
+            <el-form-item prop="password">
+                <el-input
+                        v-model="form.password"
+                        type="password"
+                        placeholder="请输入密码"
+                        size="large"
+                        :prefix-icon="'Lock'"
+                        show-password
+                        @keyup.enter="handleLogin"
+                ></el-input>
+            </el-form-item>
+            <el-form-item>
+                <el-button
+                        class="login-btn"
+                        type="primary"
+                        size="large"
+                        @click="handleLogin"
+                        :loading="loading"
+                >
+                    登 录
+                </el-button>
+            </el-form-item>
+        </el-form>
+    </div>
+</div>
+
+<script>
+    const {createApp, ref, reactive} = Vue;
+
+    createApp({
+        setup() {
+            const form = reactive({
+                username: '',
+                password: ''
+            });
+            const loading = ref(false);
+            const loginForm = ref(null);
+
+            const rules = {
+                username: [
+                    {required: true, message: '请输入用户名', trigger: 'blur'}
+                ],
+                password: [
+                    {required: true, message: '请输入密码', trigger: 'blur'}
+                ]
+            };
+
+            const handleLogin = async () => {
+                if (!loginForm.value) return;
+                try {
+                    await loginForm.value.validate();
+                } catch {
+                    return;
+                }
+
+                loading.value = true;
+                try {
+                    const params = new URLSearchParams();
+                    params.append('username', form.username);
+                    params.append('password', form.password);
+                    const res = await axios.post('/user/login', params, {
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+                    });
+                    if (res.data.success) {
+                        window.location.href = '/index.html';
+                    } else {
+                        ElementPlus.ElMessage.error(res.data.message);
+                    }
+                } catch (error) {
+                    ElementPlus.ElMessage.error('登录失败：' + (error.response?.data?.message || error.message));
+                } finally {
+                    loading.value = false;
+                }
+            };
+
+            return {
+                form,
+                loading,
+                loginForm,
+                rules,
+                handleLogin
+            };
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>
