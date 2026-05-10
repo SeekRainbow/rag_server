@@ -1,6 +1,7 @@
 package com.jankzheng.rag_server.agent;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -10,19 +11,18 @@ public class ReactAgent {
     @Autowired
     private ChatClient chatClient;
 
-    /**
-     * prompt(): 为chatClient创建提示词模板
-     * user(): 设置用户问题
-     * call(): 对话调用，将用户问题发送给LLM，LLM对问题进行分析，决定是否调用工具，最后生成答案
-     * content(): 获取返回对象中的文本
-     *
-     * @Param userMessage
-     * @return
-     * */
-    public String chat(String userMessage) {
+    @Autowired
+    private ChatMemory chatMemory;
+
+    public String chat(String userMessage, String conversationId) {
         return chatClient.prompt()
                 .user(userMessage)
+                .advisors(a -> a.param("chat_memory_conversation_id", conversationId))
                 .call()
                 .content();
+    }
+
+    public void clearMemory(String conversationId) {
+        chatMemory.clear(conversationId);
     }
 }

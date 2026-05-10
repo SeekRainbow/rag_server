@@ -34,7 +34,7 @@ public class RagTool {
         SearchRequest request = SearchRequest
                 .builder()
                 .query(query)
-                .topK(3)                        //topk()表示取相似度前三的文档块
+                .topK(10)                        //topk()表示取相似度前k的文档块
                 .similarityThreshold(0.5)       //低于0.5的相似度结果过滤掉（不返回）
                 .build();
 

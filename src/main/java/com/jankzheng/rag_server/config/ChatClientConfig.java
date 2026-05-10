@@ -1,8 +1,11 @@
 package com.jankzheng.rag_server.config;
 
-
 import com.jankzheng.rag_server.tool.RagTool;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,10 +19,16 @@ public class ChatClientConfig {
     @Autowired
     private RagTool ragTool;
 
-    //defaultSystem:设置系统提示词，可以给大模型设置角色、分配任务、提要求等,越详细，agent执行越准确
-    //chatclient通过自动装配application.yml中配置的的ollama大模型
     @Bean
-    public ChatClient chatClient() {
+    public ChatMemory chatMemory() {
+        return MessageWindowChatMemory.builder()
+                .chatMemoryRepository(new InMemoryChatMemoryRepository())
+                .maxMessages(100)
+                .build();
+    }
+
+    @Bean
+    public ChatClient chatClient(ChatMemory chatMemory) {
         return chatClientBuilder
                 .defaultSystem("""
                         你是一个拥有知识库的 AI 助手。
@@ -33,6 +42,7 @@ public class ChatClientConfig {
                         如果未找到相关信息，请明确说明。
                         """)
                 .defaultTools(ragTool)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .build();
     }
 

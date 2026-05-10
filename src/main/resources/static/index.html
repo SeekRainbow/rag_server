@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAG 智能助手</title>
+    <title>《红楼梦》阅读助手</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.9.0/dist/index.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css">
     <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
@@ -34,10 +34,20 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 20px;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .chat-header .header-left {
             font-size: 20px;
             font-weight: 600;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .chat-header .header-right {
+            display: flex;
+            gap: 10px;
         }
 
         .chat-container {
@@ -170,27 +180,88 @@
         }
 
         .cursor::after {
-            content: '▊';
+            content: '\258A';
             animation: blink 1s infinite;
         }
 
         @keyframes blink {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0;
-            }
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .waiting-dots {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            padding: 14px 20px;
+        }
+        .waiting-dots .dot {
+            font-size: 28px;
+            line-height: 1;
+            color: #666;
+            animation: dotBounce 1.4s infinite ease-in-out;
+        }
+        .waiting-dots .dot:nth-child(1) { animation-delay: 0s; }
+        .waiting-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+        .waiting-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes dotBounce {
+            0%, 80%, 100% { opacity: 0.2; transform: translateY(0); }
+            40% { opacity: 1; transform: translateY(-4px); }
+        }
+
+        .history-item {
+            display: flex;
+            flex-direction: column;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .history-item:hover {
+            background-color: #f5f7fa;
+        }
+        .history-item .history-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .history-item .history-meta {
+            font-size: 12px;
+            color: #999;
+            display: flex;
+            gap: 12px;
+        }
+        .history-empty {
+            text-align: center;
+            color: #999;
+            padding: 40px 20px;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
 <div id="app">
     <div class="chat-header">
-        <el-icon style="vertical-align: middle; margin-right: 8px;">
-            <el-icon-chat-dot-round/>
-        </el-icon>
-        RAG 智能助手
+        <div class="header-left">
+            <el-icon style="vertical-align: middle; margin-right: 8px;">
+                <el-icon-chat-dot-round/>
+            </el-icon>
+            《红楼梦》阅读助手
+        </div>
+        <div class="header-right">
+            <el-button size="small" plain @click="openHistory">
+                <el-icon style="margin-right: 4px;"><el-icon-clock/></el-icon>
+                历史
+            </el-button>
+            <el-button size="small" plain @click="newSession">
+                <el-icon style="margin-right: 4px;"><el-icon-plus/></el-icon>
+                新会话
+            </el-button>
+        </div>
     </div>
 
     <div class="chat-container" ref="chatContainer">
@@ -203,6 +274,11 @@
         <div v-for="(msg, index) in messages" :key="index" :class="['message-wrapper', msg.role]">
             <div class="message-bubble" v-if="msg.role === 'user'">{{ msg.content }}</div>
             <div class="message-bubble ai-bubble" v-else v-html="renderMarkdown(msg.content)"></div>
+        </div>
+        <div v-if="loading && typingMessage === null" class="message-wrapper ai">
+            <div class="message-bubble ai-bubble waiting-dots">
+                <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+            </div>
         </div>
         <div v-if="typingMessage !== null" class="message-wrapper ai">
             <div class="message-bubble ai-bubble cursor" v-html="renderMarkdown(typingMessage)"></div>
@@ -230,10 +306,33 @@
             </el-button>
         </div>
     </div>
+
+    <el-drawer
+            v-model="historyDrawerVisible"
+            title="历史会话"
+            direction="rtl"
+            size="360px"
+    >
+        <template #default>
+            <div v-if="sessions.length === 0" class="history-empty">暂无历史会话记录</div>
+            <div
+                    v-for="session in sessions"
+                    :key="session.id"
+                    class="history-item"
+                    @click="loadSession(session)"
+            >
+                <div class="history-title">{{ session.title }}</div>
+                <div class="history-meta">
+                    <span>{{ formatTime(session.updatedAt) }}</span>
+                    <span>{{ session.messageCount }} 条消息</span>
+                </div>
+            </div>
+        </template>
+    </el-drawer>
 </div>
 
 <script>
-    const {createApp, ref, nextTick} = Vue;
+    const {createApp, ref, nextTick, onMounted} = Vue;
 
     marked.setOptions({
         highlight: function (code, lang) {
@@ -246,6 +345,10 @@
         gfm: true
     });
 
+    function generateId() {
+        return Date.now().toString() + Math.random().toString(36).substring(2, 8);
+    }
+
     createApp({
         setup() {
             const messages = ref([]);
@@ -253,6 +356,9 @@
             const loading = ref(false);
             const typingMessage = ref(null);
             const chatContainer = ref(null);
+            const conversationId = ref(generateId());
+            const sessions = ref([]);
+            const historyDrawerVisible = ref(false);
             let typingTimer = null;
 
             const scrollToBottom = async () => {
@@ -271,7 +377,6 @@
                 return new Promise((resolve) => {
                     let index = 0;
                     typingMessage.value = '';
-
                     typingTimer = setInterval(() => {
                         if (index < fullText.length) {
                             typingMessage.value += fullText.charAt(index);
@@ -286,6 +391,22 @@
                 });
             };
 
+            const autoSave = async () => {
+                try {
+                    const params = new URLSearchParams();
+                    params.append('conversationId', conversationId.value);
+                    const firstMsg = messages.value.length > 0 ? messages.value[0].content : '';
+                    if (firstMsg) {
+                        params.append('title', firstMsg.length > 30 ? firstMsg.substring(0, 30) + '...' : firstMsg);
+                    }
+                    await axios.post('/history/save', params, {
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+                    });
+                } catch (e) {
+                    // silent
+                }
+            };
+
             const sendMessage = async () => {
                 const msg = inputMessage.value.trim();
                 if (!msg || loading.value) return;
@@ -293,15 +414,20 @@
                 messages.value.push({role: 'user', content: msg});
                 inputMessage.value = '';
                 loading.value = true;
+                typingMessage.value = null;
                 await scrollToBottom();
 
                 try {
-                    const response = await axios.get('/agent/chat', {
-                        params: {message: msg}
+                    const params = new URLSearchParams();
+                    params.append('message', msg);
+                    params.append('conversationId', conversationId.value);
+                    const response = await axios.post('/agent/chat', params, {
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'}
                     });
                     await typewriterEffect(response.data);
                     messages.value.push({role: 'ai', content: typingMessage.value});
                     typingMessage.value = null;
+                    autoSave();
                 } catch (error) {
                     await typewriterEffect('请求失败，请稍后重试：' + (error.response?.data || error.message));
                     messages.value.push({role: 'ai', content: typingMessage.value});
@@ -312,14 +438,77 @@
                 }
             };
 
+            const newSession = async () => {
+                const oldId = conversationId.value;
+                conversationId.value = generateId();
+                messages.value = [];
+                typingMessage.value = null;
+                if (typingTimer) {
+                    clearInterval(typingTimer);
+                    typingTimer = null;
+                }
+                try {
+                    const params = new URLSearchParams();
+                    params.append('conversationId', oldId);
+                    await axios.post('/agent/clear', params, {
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+                    });
+                } catch (e) {
+                    // silent
+                }
+            };
+
+            const openHistory = async () => {
+                historyDrawerVisible.value = true;
+                try {
+                    const res = await axios.get('/history/list');
+                    sessions.value = res.data;
+                } catch (e) {
+                    sessions.value = [];
+                }
+            };
+
+            const loadSession = async (session) => {
+                const newId = session.id;
+                try {
+                    const params = new URLSearchParams();
+                    params.append('conversationId', newId);
+                    const res = await axios.post('/history/load/' + session.id, params, {
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+                    });
+                    conversationId.value = newId;
+                    messages.value = res.data.messages || [];
+                    historyDrawerVisible.value = false;
+                } catch (e) {
+                    ElementPlus.ElMessage.error('加载会话失败');
+                }
+            };
+
+            const formatTime = (timeStr) => {
+                if (!timeStr) return '';
+                const d = new Date(timeStr);
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const hour = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                return month + '-' + day + ' ' + hour + ':' + min;
+            };
+
             return {
                 messages,
                 inputMessage,
                 loading,
                 typingMessage,
                 chatContainer,
+                conversationId,
+                sessions,
+                historyDrawerVisible,
                 sendMessage,
-                renderMarkdown
+                renderMarkdown,
+                newSession,
+                openHistory,
+                loadSession,
+                formatTime
             };
         }
     }).use(ElementPlus).mount('#app');
