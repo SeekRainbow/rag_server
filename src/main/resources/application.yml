@@ -23,8 +23,3 @@ spring:
 app:
   knowledge:
     dir: classpath:knowledge
-  auth:
-    username: admin
-    password: admin123
-  history:
-    dir: ./history
